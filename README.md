@@ -3,9 +3,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)]()
 
 **제 15회 DB보험금융공모전**  
-
 **기간:** 📅 2025.02.01(토) ~ 2025.02.28(금) 오후 3시
-
+  
   
 ## 팀명: DeepLife
 **주제:** Survival Analysis via Deep Learning
@@ -23,12 +22,12 @@
 2. **fraud_preprocessing.ipynb**  
    - `Data/fraud_oracle.csv` 파일의 전처리 과정  
    - **K 데이터 전처리 출처**:  
-     [<img src="./Images/Kaggle.png" width="25" alt="Kaggle Logo"/> Kaggle](https://www.kaggle.com/code/hobeomlee/fraud-detection-modeling-guidebook-a-to-z)
+     [<img src="./Images/Kaggle.png" width="25" alt="Kaggle Logo"/> Kaggle] : [Home Page](https://www.kaggle.com/code/hobeomlee/fraud-detection-modeling-guidebook-a-to-z)
 
 3. **ignnet.py**  
    - Interpretable Graph Neural Networks for Tabular Data Architecture  
    - **IGNNet 논문**:  
-     [<img src="./Images/arxiv.jpg" width="25" alt="arXiv Logo"/> arXiv](https://arxiv.org/abs/2308.08945)
+     [<img src="./Images/arxiv.jpg" width="25" alt="arXiv Logo"/> arXiv] : [Home Page](https://arxiv.org/abs/2308.08945)
 
 4. **runner.py**  
    - 프로젝트 실행을 위한 파이썬 스크립트
@@ -52,6 +51,5 @@ GNN을 통해 변수 간 복잡한 상호작용을 학습하는 모델입니다.
 
   
 ## 실행 방법
-
 ```bash
 python runner.py
