@@ -9,7 +9,7 @@
 **주제:** Survival Analysis via Deep Learning
 
 ### 팀 구성
-- **팀장**: 서울대학교 통계학과 석사과정 이성은 
+- **팀장**: 서울대학교 통계학과 석사과정 이성은  
 - **팀원**: 서울대학교 통계학과 석사과정 권헌정  
 
 ---
@@ -21,11 +21,11 @@
    
 2. **fraud_preprocessing.ipynb**  
    - `Data/fraud_oracle.csv` 파일의 전처리 과정  
-   - [📊 Kaggle](https://www.kaggle.com/code/hobeomlee/fraud-detection-modeling-guidebook-a-to-z)
+   - [<img src="https://upload.wikimedia.org/wikipedia/commons/7/7c/Kaggle_Logo.png" width="25"/> **Kaggle**](https://www.kaggle.com/code/hobeomlee/fraud-detection-modeling-guidebook-a-to-z)
 
 3. **ignnet.py**  
    - Interpretable Graph Neural Networks for Tabular Data Architecture  
-   - [📄 arXiv](https://arxiv.org/abs/2308.08945)
+   - [<img src="https://upload.wikimedia.org/wikipedia/commons/9/92/ArXiv_logo.svg" width="25"/> **arXiv**](https://arxiv.org/abs/2308.08945)
 
 4. **runner.py**  
    - 프로젝트 실행을 위한 파이썬 스크립트
@@ -42,8 +42,11 @@
 ---
 
 ## 모델 설명 (IGNNet)
-IGNNet(Interpretable Graph Neural Network)은 표 형식(Tabular) 데이터를 그래프 구조로 해석하여, GNN을 통해 변수 간 복잡한 상호작용을 학습하는 모델입니다.  
-- **해석 가능성**: 모델 내부 연산 과정을 명시적으로 확인 가능  
+IGNNet(Interpretable Graph Neural Network)은 표 형식(Tabular) 데이터를 그래프 구조로 해석하여,  
+GNN을 통해 변수 간 복잡한 상호작용을 학습하는 모델입니다.
+
+- **해석 가능성**: 모델 내부 연산 과정을 직관적으로 확인 가능  
+- **성능**: XGBoost, Random Forest, Multilayer Perceptron 등과 유사한 수준의 성능을 달성하며 설명력 제공
 
 ---
 
