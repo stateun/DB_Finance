@@ -23,11 +23,11 @@
    
 2. **fraud_preprocessing.ipynb**  
    - `Data/fraud_oracle.csv` 파일의 전처리 과정  
-   - [<img src="./images/kaggle.png" width="25" alt="Kaggle Logo"/> **Kaggle**](https://www.kaggle.com/code/hobeomlee/fraud-detection-modeling-guidebook-a-to-z)
+   - [<img src="./Images/kaggle.png" width="25" alt="Kaggle Logo"/> **Data Preprocessing**](https://www.kaggle.com/code/hobeomlee/fraud-detection-modeling-guidebook-a-to-z)
 
 3. **ignnet.py**  
    - Interpretable Graph Neural Networks for Tabular Data Architecture  
-   - [<img src="./images/arxiv.png" width="25" alt="arXiv Logo"/> **arXiv**](https://arxiv.org/abs/2308.08945)
+   - [<img src="./Images/arxiv.png" width="25" alt="arXiv Logo"/> **IGNnet Paper**](https://arxiv.org/abs/2308.08945)
 
 4. **runner.py**  
    - 프로젝트 실행을 위한 파이썬 스크립트
