@@ -20,14 +20,18 @@
 
 1. **Data**  
    - 원본 데이터(`fraud_oracle.csv`)와 전처리된 데이터를 포함
-   
+
 2. **fraud_preprocessing.ipynb**  
    - `Data/fraud_oracle.csv` 파일의 전처리 과정  
-   - [<img src="./Images/Kaggle.jpg" width="25" alt="Kaggle Logo"/> **데이터 전처리 출처 :**](https://www.kaggle.com/code/hobeomlee/fraud-detection-modeling-guidebook-a-to-z)
+   - **K 데이터 전처리 출처**:  
+     [<img src="https://upload.wikimedia.org/wikipedia/commons/7/7c/Kaggle_Logo.png" width="25" alt="Kaggle Logo"/> Kaggle](https://www.kaggle.com/code/hobeomlee/fraud-detection-modeling-guidebook-a-to-z)  
+     **Homepage**: [https://www.kaggle.com/code/hobeomlee/fraud-detection-modeling-guidebook-a-to-z](https://www.kaggle.com/code/hobeomlee/fraud-detection-modeling-guidebook-a-to-z)
 
 3. **ignnet.py**  
    - Interpretable Graph Neural Networks for Tabular Data Architecture  
-   - [<img src="./Images/arxiv.jpg" width="25" alt="arXiv Logo"/> **IGNnet 논문 :**](https://arxiv.org/abs/2308.08945)
+   - **IGNNet 논문**:  
+     [<img src="https://upload.wikimedia.org/wikipedia/commons/9/92/ArXiv_logo.svg" width="25" alt="arXiv Logo"/> arXiv](https://arxiv.org/abs/2308.08945)  
+     **Homepage**: [https://arxiv.org/abs/2308.08945](https://arxiv.org/abs/2308.08945)
 
 4. **runner.py**  
    - 프로젝트 실행을 위한 파이썬 스크립트
@@ -40,7 +44,7 @@
 - **주요 특징**: 차량 속성, 모델 정보, 사고 발생 시점 및 피해 규모, 보험 가입 정보 등  
 - **타겟**: `FraudFound_P` (사기 의심 여부)  
 - **데이터 크기**: (15420, 33)
-- [<img src="./Images/Kaggle.jpg" width="25" alt="Kaggle Logo"/> **데이터 출처 :**](https://www.kaggle.com/datasets/shivamb/vehicle-claim-fraud-detection)
+
 ---
 
 ## 모델 설명 (IGNNet)
