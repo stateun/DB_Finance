@@ -1,0 +1,6 @@
+02월 11일(화) 18:30분 시작
+첫 번째 runner.py : (AUC + F_SCORE) / 2 and Original Setting
+두 번째 runner2.py : (ACC + AUC + F_SCORE) / 3
+세 번째 runner3.py : runner2 setting + train_test split : 0.4
+네 번째 runner4.py : runner2 setting + loss : BCE
+-------------------------------------------------------------------------------------------------
