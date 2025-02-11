@@ -1,4 +1,6 @@
-# DB_Finance
+# DB_Finance  
+[![Python](https://img.shields.io/badge/Made%20with-Python-blue.svg?logo=python)]()
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)]()
 
 **제 15회 DB보험금융공모전**  
 > **기간:** 2025.02.01(토) ~ 2025.02.28(금) 오후 3시
@@ -21,11 +23,11 @@
    
 2. **fraud_preprocessing.ipynb**  
    - `Data/fraud_oracle.csv` 파일의 전처리 과정  
-   - [<img src="https://upload.wikimedia.org/wikipedia/commons/7/7c/Kaggle_Logo.png" width="25"/> **Kaggle**](https://www.kaggle.com/code/hobeomlee/fraud-detection-modeling-guidebook-a-to-z)
+   - [<img src="./images/kaggle.png" width="25" alt="Kaggle Logo"/> **Kaggle**](https://www.kaggle.com/code/hobeomlee/fraud-detection-modeling-guidebook-a-to-z)
 
 3. **ignnet.py**  
    - Interpretable Graph Neural Networks for Tabular Data Architecture  
-   - [<img src="https://upload.wikimedia.org/wikipedia/commons/9/92/ArXiv_logo.svg" width="25"/> **arXiv**](https://arxiv.org/abs/2308.08945)
+   - [<img src="./images/arxiv.png" width="25" alt="arXiv Logo"/> **arXiv**](https://arxiv.org/abs/2308.08945)
 
 4. **runner.py**  
    - 프로젝트 실행을 위한 파이썬 스크립트
@@ -42,11 +44,11 @@
 ---
 
 ## 모델 설명 (IGNNet)
-IGNNet(Interpretable Graph Neural Network)은 표 형식(Tabular) 데이터를 그래프 구조로 해석하여,  
+IGNNet(Interpretable Graph Neural Network)은 표 형식 데이터를 그래프 구조로 해석하여,  
 GNN을 통해 변수 간 복잡한 상호작용을 학습하는 모델입니다.
 
 - **해석 가능성**: 모델 내부 연산 과정을 직관적으로 확인 가능  
-- **성능**: XGBoost, Random Forest, Multilayer Perceptron 등과 유사한 수준의 성능을 달성하며 설명력 제공
+- **경쟁력**: XGBoost, Random Forest, TabNet 등과 유사한 수준의 성능을 달성
 
 ---
 
