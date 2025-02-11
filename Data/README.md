@@ -1,0 +1,2 @@
+- **fraud_data.csv** : 데이터 전처리된 파일
+- **fraud_oracle.csv** : 데이터 원본 파일
