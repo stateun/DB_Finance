@@ -23,15 +23,11 @@
 
 2. **fraud_preprocessing.ipynb**  
    - `Data/fraud_oracle.csv` 파일의 전처리 과정  
-   - **K 데이터 전처리 출처**:  
-     [<img src="https://upload.wikimedia.org/wikipedia/commons/7/7c/Kaggle_Logo.png" width="25" alt="Kaggle Logo"/> Kaggle](https://www.kaggle.com/code/hobeomlee/fraud-detection-modeling-guidebook-a-to-z)  
-     **Homepage**: [https://www.kaggle.com/code/hobeomlee/fraud-detection-modeling-guidebook-a-to-z](https://www.kaggle.com/code/hobeomlee/fraud-detection-modeling-guidebook-a-to-z)
+   - **K 데이터 전처리 출처**:  [<img src="./Images/kaggle.png" width="25" alt="Kaggle Logo"/> **Kaggle**](https://www.kaggle.com/code/hobeomlee/fraud-detection-modeling-guidebook-a-to-z)
 
 3. **ignnet.py**  
    - Interpretable Graph Neural Networks for Tabular Data Architecture  
-   - **IGNNet 논문**:  
-     [<img src="https://upload.wikimedia.org/wikipedia/commons/9/92/ArXiv_logo.svg" width="25" alt="arXiv Logo"/> arXiv](https://arxiv.org/abs/2308.08945)  
-     **Homepage**: [https://arxiv.org/abs/2308.08945](https://arxiv.org/abs/2308.08945)
+   - **IGNNet 논문**: (https://arxiv.org/abs/2308.08945)
 
 4. **runner.py**  
    - 프로젝트 실행을 위한 파이썬 스크립트
