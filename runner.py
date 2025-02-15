@@ -1,7 +1,7 @@
 ########## Load Package ##########
 
 # IGNNet Module ( Custom Module )
-from ignnet import train_model
+from ignnet4 import train_model, save_importance_plot
 import data_preprocess as dp
 import dataset_load as dl
 
@@ -37,13 +37,13 @@ from scipy.stats import spearmanr
 from tqdm import tqdm
 import pickle
 import copy
+import logging
 
 # Suppress specific sklearn warnings
 import warnings
 from sklearn.exceptions import ConvergenceWarning, UndefinedMetricWarning
 warnings.filterwarnings('ignore', category=ConvergenceWarning)
 warnings.filterwarnings('ignore', category=UndefinedMetricWarning)
-
 
 # Sklearn
 from sklearn import metrics
@@ -56,20 +56,21 @@ from sklearn import svm
 from sklearn.metrics import roc_auc_score, precision_score, recall_score, f1_score
 from sklearn.preprocessing import StandardScaler
 
+import xgboost as xgb
+
 ####################################################################################
 
 def _parse_args():
-    
     # Basic Hyper Parameter
     parser = argparse.ArgumentParser(description="Runner for IGNnet.")
     parser.add_argument('--data_name', default='revised_adult', type=str,
                         choices=['fraud_data'],
                         help='Dataset')
-    parser.add_argument('--file_path', default='/data/home/stateun/data',
+    parser.add_argument('--file_path', default='./data',
                         type=str, help='Path to the dataset folder')
-    parser.add_argument('--output', default='/data/home/stateun/results',
+    parser.add_argument('--output', default='./results',
                         help='Path of the output file')
-    parser.add_argument('--gpu', default='3', type=str, help='GPU number')
+    parser.add_argument('--gpu', default='1', type=str, help='GPU number')
     parser.add_argument('--seed', type=int, default=25, help='Random seed')
     
     # Training Settings
@@ -90,7 +91,7 @@ def _parse_args():
                         help="Learning Rate?")
     return parser.parse_known_args()
 
-############## Evaluate Classifier (LR, DT, RF, MLP, SVM) ##############
+############## Evaluate Classifier (LR, DT, RF, MLP, SVM, XGBoost) ##############
 def evaluate_baseline_models(train_data, train_label, test_data, test_label, seed=25):
     baseline_results = []
     models = {
@@ -98,7 +99,8 @@ def evaluate_baseline_models(train_data, train_label, test_data, test_label, see
         "DecisionTree": tree.DecisionTreeClassifier(random_state=seed),
         "RandomForest": RandomForestClassifier(random_state=seed),
         "MLP": MLPClassifier(random_state=seed, max_iter=300),
-        "SVM": svm.SVC(probability=True, random_state=seed)
+        "SVM": svm.SVC(probability=True, random_state=seed),
+        "XGBoost": xgb.XGBClassifier(random_state=seed, eval_metric='logloss')
     }
     for model_name, model in models.items():
         model.fit(train_data, train_label)
@@ -137,31 +139,11 @@ def run_interpretability_evaluation(gnn_model , test_tensor, adj_matrix, index_t
 
     ## Plot the SHAP
     instance_input = test_tensor[10][0].reshape(1, adj_matrix.shape[0], 1).to(device)
-    # gnn_model.plot_bars(instance_input, test_data_df.iloc[0], top_n)
     
-    interpre_plot = f"/data/home/stateun/plot/Interpretability/{sampling}/"
+    interpre_plot = f"./plot/Interpretability/{sampling}/"
     
     if not os.path.exists(interpre_plot):
         os.makedirs(interpre_plot)
-    
-    # interpre_data = f"{data_name}_interpretability_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
-    # plot_filename = os.path.join(interpre_plot, interpre_data)
-    # plt.savefig(plot_filename)
-    # plt.close()
-    
-    ## Save the data
-    # pred = gnn_model.predict(instance_input)
-    # pred_filename = f"{data_name}_prediction_{datetime.now().strftime('%Y%m%d_%H%M%S')}.npy"
-    
-    # interpre_file = f"./data/interpretability/"
-    # interpre_npz = f"{data_name}_prediction_{datetime.now().strftime('%Y%m%d_%H%M%S')}.npy"
-    
-    # if not os.path.exists(interpre_file):
-    #     os.makedirs(interpre_file)
-    
-    # pred_filename = os.path.join(interpre_file, interpre_npz)
-    
-    # np.save(pred_filename, pred.cpu().detach().numpy())
     
     importances = gnn_model.weights.cpu().detach().reshape(-1).numpy()
     feature_global_importance = {}
@@ -186,7 +168,7 @@ def run_interpretability_evaluation(gnn_model , test_tensor, adj_matrix, index_t
     plt.barh(top_feature_names, top_shap_vals, color='skyblue')
     plt.xlabel("SHAP Value")
     plt.title("SHAP Feature Attributions (GradientExplainer) - Top 10 Features")
-    shap_plot = f"/data/home/stateun/plot/Interpretability/{sampling}/"
+    shap_plot = f"./plot/Interpretability/{sampling}/"
     
     if not os.path.exists(shap_plot):
         os.makedirs(shap_plot)
@@ -200,16 +182,8 @@ def run_interpretability_evaluation(gnn_model , test_tensor, adj_matrix, index_t
 
     print(f"[XAI] SHAP GradientExplainer top10 plot saved: {shap_plot_filename}")
 
-
 ############## Runner ##############
 def run_experiment(args, now):
-    """
-    1. Load data from "./data"
-    2. Feature Selection & Oversampling
-    3. Train IGNnet (using validation to select best model)
-    4. Evaluate on test set for IGNnet and for baseline models
-    5. Run interpretability evaluation and return a list of result dictionaries (one for IGNnet and one for each baseline)
-    """
     if torch.cuda.is_available():
         torch.cuda.set_device(int(args.gpu))
         device = f"cuda:{args.gpu}"
@@ -222,13 +196,11 @@ def run_experiment(args, now):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = True
 
-    # Load Data
     full_path = os.path.join(args.file_path, args.data_name) + '.csv'
     load_data = pd.read_csv(full_path).astype(int)
     encoded_data = load_data.drop(['FraudFound_P'], axis=1)
     label_data = load_data['FraudFound_P']
 
-    # Train / Validation / Test split
     train_data, left_out, train_label, y_left_out = train_test_split(
         encoded_data, label_data, test_size=0.2, random_state=args.seed
     )
@@ -237,7 +209,6 @@ def run_experiment(args, now):
     )
 
     train_set = pd.concat([train_data, train_label], axis=1)
-    # Oversampling via CustomDataset
     custom_data = dl.CustomDataset(
         dataset=train_set,
         data_name=args.data_name,
@@ -252,136 +223,25 @@ def run_experiment(args, now):
     test_data = test_data[train_column]
     dev_data = dev_data[train_column]
 
-    # Compute adjacency matrix via data_preprocess
-    graph_default = '/data/home/stateun/plot/graph'
+    graph_default = './plot/graph'
     if not os.path.exists(graph_default):
         os.makedirs(graph_default)
     graph_name = f"{args.sampling}_{now}.png"
     graph_path = os.path.join(graph_default, graph_name)
     
     adj_matrix, index_to_name, name_to_index = dp.compute_adjacency_matrix(
-        data=train_data, self_loop_weight=10, threshold=0.2
+        data=train_data, self_loop_weight=20, threshold=0.2
     )
-
-    def categorize_feature(name: str) -> str:
-
-        # 1) 
-        if name == "AccidentArea":
-            return "AccidentArea"
-        elif name == "Sex":
-            return "Sex"
-        elif name == "Age":
-            return "Age"
-        elif name == "Fault":
-            return "Fault"
-        elif name == "VehiclePrice":
-            return "VehiclePrice"
-        elif name == "DriverRating":
-            return "DriverRating"
-        elif name == "AgeOfVehicle":
-            return "AgeOfVehicle"
-        elif name == "PoliceReportFiled":
-            return "PoliceReportFiled"
-        elif name == "AgentType":
-            return "AgentType"
-        elif name == "BasePolicy":
-            return "BasePolicy"
-
-        # 2) 
-        elif name.startswith("Make_"):
-            return "Make"
-        elif name.startswith("MonthClaimed_"):
-            return "MonthClaimed"
-        elif name.startswith("MaritalStatus_"):
-            return "MaritalStatus"
-        elif name.startswith("PolicyType_"):
-            return "PolicyType"
-        elif name.startswith("VehicleCategory_"):
-            return "VehicleCategory"
-        elif name.startswith("RepNumber_"):
-            return "RepNumber"
-        elif name.startswith("Deductible_"):
-            return "Deductible"
-        elif name.startswith("PastNumberOfClaims_"):
-            return "PastNumberOfClaims"
-        elif name.startswith("AgeOfPolicyHolder_"):
-            return "AgeOfPolicyHolder"
-        elif name.startswith("NumberOfSuppliments_"):
-            return "NumberOfSuppliments"
-        elif name.startswith("AddressChange_Claim_"):
-            return "AddressChange_Claim"
-        elif name.startswith("NumberOfCars_"):
-            return "NumberOfCars"
-        elif name.startswith("Year_"):
-            return "Year"
-        elif "Days_Policy" in name or "Accident" in name:
-            return "Accident_Policy"
-
-        else:
-            raise ValueError(f"Not Defined Feature Name : {name}")
-
-    cat_to_nodes = defaultdict(list)
-    for idx, feat_name in index_to_name.items():
-        cat = categorize_feature(feat_name)
-        cat_to_nodes[cat].append(idx)
-
-    cat_list = list(cat_to_nodes.keys())
-    cat_index = {cat: i for i, cat in enumerate(cat_list)}
-
-    adj_cat = np.zeros((len(cat_list), len(cat_list)))
-    for cat1, nodes1 in cat_to_nodes.items():
-        for cat2, nodes2 in cat_to_nodes.items():
-            total_weight = 0
-            for n1 in nodes1:
-                for n2 in nodes2:
-                    total_weight += adj_matrix[n1, n2]
-            i, j = cat_index[cat1], cat_index[cat2]
-            adj_cat[i, j] = total_weight
-            
-    G_cat = nx.from_numpy_array(adj_cat)
-
-    mapping_cat = {i: cat_list[i] for i in range(len(cat_list))}
-    G_cat = nx.relabel_nodes(G_cat, mapping_cat)
-
-    color_map = {
-        "AccidentArea": "tab:blue",
-        "Sex": "tab:orange",
-        "Age": "tab:green",
-        "Fault": "tab:red",
-        "VehiclePrice": "tab:purple",
-        "DriverRating": "tab:brown",
-        "AgeOfVehicle": "tab:pink",
-        "PoliceReportFiled": "tab:olive",
-        "AgentType": "tab:gray",
-        "BasePolicy": "tab:cyan",
-
-        "Make": "tab:blue",
-        "MonthClaimed": "tab:orange",
-        "MaritalStatus": "tab:green",
-        "PolicyType": "tab:red",
-        "VehicleCategory": "tab:purple",
-        "RepNumber": "tab:brown",
-        "Deductible": "tab:pink",
-        "PastNumberOfClaims": "tab:olive",
-        "AgeOfPolicyHolder": "tab:gray",
-        "NumberOfSuppliments": "tab:cyan",
-        "AddressChange_Claim": "tab:olive",
-        "NumberOfCars": "tab:green",
-        "Year": "tab:purple",
-        "Accident_Policy": "tab:red"
-    }
-
-
-    node_colors_cat = []
-    for node in G_cat.nodes():
-        node_colors_cat.append(color_map[node] if node in color_map else "tab:gray")
-
+    
+    G = nx.from_numpy_array(adj_matrix)
+    mapping = {i: index_to_name[i] for i in range(len(index_to_name))}
+    G = nx.relabel_nodes(G, mapping)
     plt.figure(figsize=(10, 10))
-    pos_cat = nx.spring_layout(G_cat, seed=args.seed)
-    nx.draw_networkx_nodes(G_cat, pos_cat, node_color=node_colors_cat, node_size=2000, alpha=0.7)
-    nx.draw_networkx_edges(G_cat, pos_cat, alpha=0.5, width=1.2)
-    nx.draw_networkx_labels(G_cat, pos_cat, font_size=10)
-    plt.title("Graph Representation of Tabular Data (Merged by Category)")
+    pos = nx.spring_layout(G, seed=args.seed)
+    nx.draw_networkx_nodes(G, pos, node_color='skyblue', node_size=500, alpha=0.8)
+    nx.draw_networkx_edges(G, pos, alpha=0.5)
+    nx.draw_networkx_labels(G, pos, font_size=10)
+    plt.title("Graph Representation of Tabular Data")
     plt.axis('off')
     plt.savefig(graph_path, bbox_inches='tight')
     
@@ -398,7 +258,6 @@ def run_experiment(args, now):
     num_features = train_data.shape[1] 
     input_dim = 1
 
-    # Train IGNnet model – using validation to select best model
     gnn_model = train_model(input_dim, num_features, adj_matrix, index_to_name,
                               train_dataloader, val_dataloader,
                               data_name=args.data_name,
@@ -409,8 +268,7 @@ def run_experiment(args, now):
                               learning_rate=args.lr,
                               normalize_adj=False)
     
-    # Evaluate IGNnet on the test set
-    print('========== Start testing IGNnet ==========')
+    print('========== Start testing IGNnet ==========') 
     gnn_model.eval()
     list_prediction = []
     list_prob_pred = []
@@ -431,7 +289,7 @@ def run_experiment(args, now):
     recall_metric = recall_score(y_test_pred, list_prediction, average='macro') * 100
     f_score = f1_score(y_test_pred, list_prediction, average='macro') * 100
     acc = np.mean(np.array(list_prediction) == np.array(y_test_pred)) * 100
-    print('========== End testing IGNnet ==========')
+    print('========== End testing IGNnet ==========') 
     
     print("=========== IGNnet Test Metrics: =========== ")
     print("AUC: {:.2f}, ACC: {:.2f}, Precision: {:.2f}, Recall: {:.2f}, F1-Score: {:.2f}".format(auc, acc, prec, recall_metric, f_score))
@@ -450,23 +308,44 @@ def run_experiment(args, now):
     
     baseline_results = evaluate_baseline_models(train_data, train_label, test_data, test_label, seed=args.seed)
     
-    # normalized_train_data = dp.min_max_normalize(train_data, train_data)
     run_interpretability_evaluation(gnn_model, test_tensor, adj_matrix, index_to_name, device, args.data_name, 
                                     sampling = args.sampling)
+    
+    importance_dir = f"./plot/ImportanceExtracted/{args.sampling}/"
+    if not os.path.exists(importance_dir):
+        os.makedirs(importance_dir)
+    importance_filename = f"{args.data_name}_importance_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+    importance_save_path = os.path.join(importance_dir, importance_filename)
+    save_importance_plot(gnn_model, test_tensor[0][0].reshape(1, adj_matrix.shape[0], 1).to(device), test_data.iloc[0], 10, importance_save_path)
+    print(f"[XAI] Importance plot saved: {importance_save_path}")
     
     all_results = [deep_results] + baseline_results
     return all_results
 
-
 def main():
     args, _ = _parse_args()
-    all_exp_results = []
+    
+    os.makedirs(args.output, exist_ok=True)
+    log_file = os.path.join(args.output, 'test1.log')
+    logging.basicConfig(
+        filename=log_file,
+        level=logging.INFO,
+        format='%(asctime)s:%(levelname)s:%(message)s'
+    )
+    logger = logging.getLogger(__name__)
+    
+    results_csv_path = os.path.join(args.output, "test4_results.csv")
+    if not os.path.exists(results_csv_path):
+        pd.DataFrame(columns=["dataset", "model", "AUC", "ACC", "Precision", "Recall", "F1_score", "best_params"]).to_csv(
+            results_csv_path, index=False
+        )
+    
     for dataset in ['fraud_data']:
-        for batch_size in [64, 128, 256]:
-            for epoch in [50, 100, 150, 200]:
-                for sampling in ['smote', 'borderline-smote', 'adasyn', 'over-random']:
+        for batch_size in [64]:
+            for epoch in [100]:
+                for sampling in ['smote']:
                     for alpha in [0.01, 0.03, 0.05, 0.1]:
-                        for lr in [1e-2, 1e-4, 2e-2, 2e-4]:
+                        for lr in [1e-2]:
                             for loss in ['Original']:
                                 now = datetime.now().strftime("%H-%M-%S")
                                 args.alpha = alpha
@@ -476,30 +355,31 @@ def main():
                                 args.epochs = epoch
                                 args.lr = lr
                                 args.loss = loss
+                                
+                                logger.info("Running experiment with params:\n"
+                                            f"* dataset = {dataset}\n"
+                                            f"* batch_size = {batch_size}\n"
+                                            f"* epochs = {epoch}\n"
+                                            f"* sampling = {sampling}\n"
+                                            f"* alpha = {alpha}\n"
+                                            f"* lr = {lr}\n"
+                                            f"* loss = {loss}")
+                                
                                 print(f"Running experiment with params :\n"
-                                    "============================\n",
-                                    f"* alpha={alpha}\n", 
-                                    f"* sampling={sampling}\n", 
-                                    f"* batch_size={batch_size}\n", 
-                                    f"* epochs={epoch}\n", 
-                                    f"* lr={lr}\n",
-                                    f"* loss={loss}\n"
-                                    "============================")
+                                      "============================\n",
+                                      f"* alpha={alpha}\n", 
+                                      f"* sampling={sampling}\n", 
+                                      f"* batch_size={batch_size}\n", 
+                                      f"* epochs={epoch}\n", 
+                                      f"* lr={lr}\n",
+                                      f"* loss={loss}\n"
+                                      "============================")
                                 
                                 exp_results = run_experiment(args, now)
-                                all_exp_results.extend(exp_results)
-    results_df = pd.DataFrame(all_exp_results, columns=["dataset", "model", "AUC", "ACC", "Precision", "Recall", "F1_score", "best_params"])
-    results_csv_path = os.path.join(args.output, "test1_results.csv")
-    
-    if not os.path.exists(args.output):
-        os.makedirs(args.output)
-        
-    if os.path.exists(results_csv_path):
-        results_df.to_csv(results_csv_path, mode='a', header=False, index=False)
-        print(f"Results appended to {results_csv_path}")
-    else:
-        results_df.to_csv(results_csv_path, index=False)
-        print(f"Results saved to {results_csv_path}")
+                                
+                                results_df = pd.DataFrame(exp_results, columns=["dataset", "model", "AUC", "ACC", "Precision", "Recall", "F1_score", "best_params"])
+                                results_df.to_csv(results_csv_path, mode='a', header=False, index=False)
+                                logger.info(f"Results appended to {results_csv_path}")
 
 if __name__ == '__main__':
     main()

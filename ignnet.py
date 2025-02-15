@@ -4,6 +4,7 @@ from torch.nn.parameter import Parameter
 import numpy as np
 import math
 import os
+import logging
 from tqdm import tqdm
 from sklearn.metrics import roc_auc_score, precision_score, recall_score, f1_score
 import copy
@@ -36,7 +37,6 @@ class Block(nn.Module):
                        self.fc_2b(self.fc_2a(x))), dim=2)
         x = self.relu(self.concat(x))
         return x
-
 
 class FNN(nn.Module):
     def __init__(self, num_features):
@@ -152,8 +152,7 @@ class IGNNet(nn.Module):
         if self.loss == 'BCE':
             combined = torch.cat([x_gnn_flat, x_cross], dim=1)
             out = self.final_fc(combined)
-                    
-        else :
+        else:
             out = self.final_fc(combined)
             out = self.sigmoid(out)
         return out
@@ -168,8 +167,9 @@ class IGNNet(nn.Module):
 
     def get_global_importance(self, y):
         feature_global_importances = {}
-        for _, name in self.index_to_name.items():
-            feature_global_importances[name] = 0.0
+        weights = self.weights.cpu().detach().numpy()
+        for i, name in self.index_to_name.items():
+            feature_global_importances[name] = weights[i]
         return feature_global_importances
 
     def plot_bars(self, normalized_instance, instance, num_f):
@@ -188,11 +188,8 @@ class IGNNet(nn.Module):
         feature_local_importance = {}
         for i, v in enumerate(values):
             feature_local_importance[self.index_to_name[i]] = v
-        feature_names = [f'{name} = {original_values[name]}' for name, val in sorted(feature_local_importance.items(),
-                                                                                     key=lambda item: abs(item[1]))]
-        
-        feature_values = [val for name, val in sorted(feature_local_importance.items(),
-                                                      key=lambda item: abs(item[1]))]
+        feature_names = [f'{name} = {original_values[name]}' for name, val in sorted(feature_local_importance.items(), key=lambda item: abs(item[1]))]
+        feature_values = [val for name, val in sorted(feature_local_importance.items(), key=lambda item: abs(item[1]))]
         plt.style.use('ggplot')
         plt.rcParams.update({'font.size': 12, 'font.weight': 'bold'})
         center = 0
@@ -211,7 +208,6 @@ class IGNNet(nn.Module):
     def weights(self):
         return torch.mean(torch.stack(list(self.cross_net.cross_weights)), dim=0)
 
-
 def train_model(input_dim, num_features, adj_matrix, index_to_name,
                 train_dataloader, val_dataloader,
                 data_name, num_classes, now, loss, num_epochs=300,
@@ -222,127 +218,160 @@ def train_model(input_dim, num_features, adj_matrix, index_to_name,
     if normalize_adj:
         adj_matrix = normalize_adj_matrix(adj_matrix)
     
-    all_labels = []
-    
-    for data in train_dataloader:
-        _, labels = data
-        all_labels.extend(labels.cpu().numpy().tolist())
-        
-    all_labels = np.array(all_labels)
-    
-    if loss == 'BCE' :
+    if loss == 'BCE':
         pos_weight = torch.tensor([2.0], device=device)
         loss_function = torch.nn.BCEWithLogitsLoss(pos_weight=pos_weight)
-        
-    elif loss == 'FOCAL' :
+    elif loss == 'FOCAL':
         loss_function = focal_loss
-            
-    else :
-        loss_function = nn.BCELoss()
+    else:
+        loss_function = torch.nn.BCELoss()
     
-
     gnn_model = IGNNet(input_dim, num_features, adj_matrix.to(device), num_classes, index_to_name, loss).to(device)
     optimizer_train = torch.optim.Adam(gnn_model.parameters(), lr=learning_rate)
     
-    # Define Initial Value of performance
-    best_roc = 0.5
-    best_pre = 0.5
-    best_recall = 0.5
-    best_f1 = 0.5
+    logger = logging.getLogger(__name__)
     
     best_score = 0.5
-    
+    best_epoch = 0
     best_model_wts = copy.deepcopy(gnn_model.state_dict())
     
     for epoch in range(1, num_epochs + 1):
         gnn_model.train()
         train_loss = 0
-        train_count = 0
+        train_correct = 0
+        train_total = 0
         train_labels = []
         for i, data in enumerate(tqdm(train_dataloader, desc=f"Training Epoch {epoch}")):
             inputs, labels = data
-            inputs = inputs.to(device)  # (batch, num_features, 1)
+            inputs = inputs.to(device)
             labels = labels.to(device)
             optimizer_train.zero_grad()
             outputs = gnn_model(inputs)
-            loss = loss_function(outputs.reshape(-1), labels.float())
-            
-            # BCEwith logitsloss
-            if loss == 'BCE' :
-                probs = torch.sigmoid(outputs) # If we use the sigmoid function as activation ftn., then this code must be eliminated
-            else :
-                pass
-            
-            preds = (outputs.reshape(-1) > 0.5) * 1
-            train_count += torch.sum(preds == labels.data)
-            train_loss += loss.item()
-            loss.backward()
+            loss_val = loss_function(outputs.reshape(-1), labels.float())
+            loss_val.backward()
             optimizer_train.step()
+            
+            preds = (outputs.reshape(-1) > 0.5).long()
+            train_correct += torch.sum(preds == labels.data).item()
+            train_total += len(labels)
+            train_loss += loss_val.item()
             train_labels.extend(labels.tolist())
             torch.cuda.empty_cache()
         
+        train_accuracy = train_correct / train_total
+
         gnn_model.eval()
-        val_count = 0
+        val_correct = 0
         list_prediction = []
         val_labels = []
         list_prob_pred = []
-        for i, data in tqdm(list(enumerate(val_dataloader)), desc=f"Validation Epoch {epoch}"):
+        for i, data in enumerate(tqdm(val_dataloader, desc=f"Validation Epoch {epoch}")):
             inputs, labels = data
             inputs = inputs.to(device)
             labels = labels.to(device)
             outputs = gnn_model(inputs)
-            preds = (outputs.reshape(-1) > 0.5) * 1
-            val_count += torch.sum(preds == labels.data)
+            preds = (outputs.reshape(-1) > 0.5).long()
+            val_correct += torch.sum(preds == labels.data).item()
             val_labels.extend(labels.tolist())
             list_prediction.extend(preds.tolist())
             list_prob_pred.extend(outputs.tolist())
-            del inputs, labels, outputs, preds
             torch.cuda.empty_cache()
         
+        acc = val_correct / len(val_labels)
         roc = roc_auc_score(val_labels, list_prediction)
         prec = precision_score(val_labels, list_prediction, average='macro')
-        recall = recall_score(val_labels, list_prediction, average='macro')
+        recall_metric = recall_score(val_labels, list_prediction, average='macro')
         f_score = f1_score(val_labels, list_prediction, average='macro')
-        acc = val_count / len(val_labels)
         
-        print('--------------------')
-        print(f"Epoch {epoch} - Dev Accuracy: {acc:.2f}")
-        print("ROC: {:.2f}, Precision: {:.2f}, Recall: {:.2f}, F1-Score: {:.2f}".format(roc, prec, recall, f_score))
-        print("Train Accuracy: {:.2f}, Train Loss: {:.2f}".format(train_count / len(train_labels), train_loss))
-        print('--------------------')
+        mean_score = (acc + roc + f_score) / 3
         
-        mean_score = (acc + roc  + f_score)/3
+        logger.info(f"Epoch {epoch}: Train Loss = {train_loss:.4f}, Train Acc = {train_accuracy:.4f}, "
+                    f"Val Acc = {acc:.4f}, ROC = {roc:.4f}, F1 = {f_score:.4f}, Mean Score = {mean_score:.4f}")
+        print('--------------------')
+        print(f"Epoch {epoch} - Validation Accuracy: {acc:.2f}")
+        print("Train Accuracy: {:.2f}".format(train_accuracy))
+        print('--------------------')
         
         if mean_score >= best_score:
             best_score = mean_score
+            best_epoch = epoch
             best_model_wts = copy.deepcopy(gnn_model.state_dict())
-            mean_str = "{:.2f}".format(mean_score)
-            model_load = f'/data/home/stateun/model/'
-            optm_load = f'/data/home/stateun/optm/'
-            
-            if not os.path.exists(model_load):
-                os.makedirs(model_load)
-                
-            if not os.path.exists(optm_load):
-                os.makedirs(optm_load)     
-                      
-            model_name = f'epoch{epoch}-{mean_str}_{now}.model'
-            optm_name = f'epoch{epoch}-{mean_str}_{now}.optm'
-            
-            model_path = os.path.join(model_load, model_name)
-            optm_path = os.path.join(optm_load, optm_name)
-
-            torch.save(gnn_model.state_dict(), model_path)
-            torch.save(optimizer_train.state_dict(), optm_path)
-            print(f"[INFO] Best parameters updated at epoch {epoch} with Mean Performance {mean_str}.")
-            print(f"        Model saved as: {model_path}")
-            print(f"        Optimizer saved as: {optm_path}")
-
+    
     gnn_model.load_state_dict(best_model_wts)
+    logger.info(f"Best model found at epoch {best_epoch} with Mean Score = {best_score:.4f}")
+    
+    model_dir = './plot/model/'
+    optm_dir = './plot/optm/'
+    if not os.path.exists(model_dir) :
+        os.makedirs(model_dir, exist_ok=True)
+        
+    if not os.path.exists(optm_dir):
+        os.makedirs(optm_dir, exist_ok=True)
+    
     mean_str = "{:.2f}".format(best_score)
-    final_model_path = f'/data/home/stateun/model/epoch_final-{mean_str}.model'
-    final_optm_path = f'/data/home/stateun/optm/epoch_final-{mean_str}.optm'
-    torch.save(gnn_model.state_dict(), final_model_path)
-    torch.save(optimizer_train.state_dict(), final_optm_path)
+    model_name = f'test4_{now}_{mean_str}.model'
+    optm_name = f'test4_{now}_{mean_str}.optm'
+    
+    model_path = os.path.join(model_dir, model_name)
+    optm_path = os.path.join(optm_dir, optm_name)
+    
+    torch.save(gnn_model.state_dict(), model_path)
+    torch.save(optimizer_train.state_dict(), optm_path)
+    
+    logger.info(f"Final best model saved: {model_path}")
     
     return gnn_model
+
+def save_importance_plot(model, normalized_instance, instance, num_f, save_path):
+
+    feature_dir = './plot/feature/'
+    if not os.path.exists(feature_dir):
+        os.makedirs(feature_dir)
+    save_path = os.path.join(feature_dir, save_path)
+    
+    y = model.predict(normalized_instance)
+    if model.num_classes > 2:
+        y = np.argmax(y[0].cpu().detach().numpy())
+    
+    feature_global_importance = model.get_global_importance(y)
+    local_importance = model.get_local_importance(normalized_instance).reshape(-1)
+    
+    feature_local_importance = {}
+    original_values = instance.to_dict()
+    
+    for i, v in enumerate(local_importance):
+        name = model.index_to_name[i]
+        combined_importance = feature_global_importance[name] * v
+        feature_local_importance[name] = combined_importance
+    
+    sorted_importances = sorted(feature_local_importance.items(), key=lambda x: abs(x[1]), reverse=True)
+    
+    top_features = sorted_importances[:num_f]
+    
+    feature_names = [f"{f_name} = {original_values[f_name]}" for f_name, val in top_features]
+    values = [val for f_name, val in top_features]
+    
+    feature_names.reverse()
+    values.reverse()
+    
+    colors = ['dodgerblue' if v < 0 else '#f5054f' for v in values]
+    
+    plt.style.use('ggplot')
+    plt.rcParams.update({'font.size': 12, 'font.weight': 'bold'})
+    plt.figure(figsize=(8, 6))
+    
+    plt.barh(feature_names, values, color=colors)
+    plt.axvline(x=0, color='black', linewidth=1)
+    
+    for i, v in enumerate(values):
+        if v >= 0:
+            plt.text(v + 0.01, i, f"+{v:.2f}", va='center', ha='left')
+        else:
+            plt.text(v - 0.01, i, f"{v:.2f}", va='center', ha='right')
+    
+    plt.xlabel("Value")
+    plt.title("Feature Importances (SHAP-like) - Top {} Features".format(num_f))
+    
+    plt.tight_layout()
+    plt.savefig(save_path)
+    plt.close()
