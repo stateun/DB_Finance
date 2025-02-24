@@ -22,8 +22,8 @@
 
 2. **Preprocessing.ipynb**  
    - `Data/fraud_oracle.csv` 파일의 전처리 과정  
-   - **K 데이터 전처리 출처**:  
-     **Kaggle** : [https://www.kaggle.com/code/hobeomlee/fraud-detection-modeling-guidebook-a-to-z](https://www.kaggle.com/code/hobeomlee/fraud-detection-modeling-guidebook-a-to-z)
+   - **K 데이터 출처**:  
+     **Kaggle** [https://www.kaggle.com/datasets/shivamb/vehicle-claim-fraud-detection](https://www.kaggle.com/datasets/shivamb/vehicle-claim-fraud-detection)
 
 3. **ignnet.py**  
    - Interpretable Graph Neural Networks for Tabular Data Architecture  
@@ -31,15 +31,17 @@
      **arXiv** : [https://arxiv.org/abs/2308.08945](https://arxiv.org/abs/2308.08945)
 
 4. **data_preprocess.py**
-   - 피처 간 관계를 나타내는 인접 행렬을 생성하여 Tabular 데이터를 전처리과정
+   - 피처 간 관계를 나타내는 인접 행렬을 생성하여 Tabular 데이터 전처리과정
    - 데이터를 텐서로 변환하고 GNN 학습을 위한 Dataset을 생성하는 과정
 
 5. dataset_load.py
    - 데이터 오버샘플링하는 과정
 
-4. **runner.py**  
+6. **runner.py**  
    - 프로젝트 실행을 위한 파이썬 스크립트
 
+7. **requirements.txt**
+   - 실험 재현성을 위한 패키지 버전 셋팅
   
 ## 데이터 설명
 **Vehicle Insurance Fraud Detection**  
@@ -60,13 +62,26 @@ GNN을 통해 변수 간 복잡한 상호작용을 학습하는 모델입니다.
 
 ## 최적의 하이퍼파라미터
 
+**SMOTE**
+
 | Parameter   | Value       |
 |------------|------------|
 | alpha      | 0.01       |
-| sampling   | SMOTE      |
 | batch_size | 64         |
 | epochs     | 100        |
 | lr         | 0.01       |
+| test_size  | 0.2        |
+| threshold  | 0.4        |
+
+**Borderline-SMOTE**
+| Parameter   | Value       |
+|------------|------------|
+| alpha      | 0.01       |
+| batch_size | 64         |
+| epochs     | 100        |
+| lr         | 0.01       |
+| test_size  | 0.2        |
+| threshold  | 0.5        |
 
   
 ## 실행 방법

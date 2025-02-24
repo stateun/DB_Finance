@@ -32,7 +32,6 @@ class Block(nn.Module):
         self.relu = nn.ReLU()
 
     def forward(self, x):
-        # x: (batch, num_features, dim)
         x = torch.cat((self.fc_1b(self.fc_1a(x)),
                        self.fc_2b(self.fc_2a(x))), dim=2)
         x = self.relu(self.concat(x))
@@ -41,7 +40,7 @@ class Block(nn.Module):
 class FNN(nn.Module):
     def __init__(self, num_features):
         super(FNN, self).__init__()
-        self.fc_1 = nn.Linear(576, 128) # Input Dim : 64+256+256 = 576
+        self.fc_1 = nn.Linear(576, 128)
         self.fc_2 = nn.Linear(128, 64)
         self.bn1 = nn.BatchNorm1d(num_features)
         self.fc_3 = nn.Linear(64, 32)
@@ -72,10 +71,9 @@ class CrossNetwork(nn.Module):
         )
 
     def forward(self, x0):
-        # x0: (batch, input_dim)
         x = x0
         for i in range(self.num_layers):
-            dot = torch.sum(x * self.cross_weights[i], dim=1, keepdim=True)  # (batch, 1)
+            dot = torch.sum(x * self.cross_weights[i], dim=1, keepdim=True)
             x = x0 * dot + self.cross_biases[i] + x
         return x
 
@@ -104,7 +102,6 @@ class IGNNet(nn.Module):
         self.adj = adj
         self.index_to_name = index_to_name
         self.num_classes = num_classes
-        
         self.cross_net = CrossNetwork(num_features, num_layers=2)
         self.final_fc = nn.Linear(2 * num_features, 1)
         self.batch_adj = None
@@ -120,7 +117,7 @@ class IGNNet(nn.Module):
 
     def gnn_forward(self, x_in):
         self.load_batch_adj(x_in)
-        x = self.fc1(x_in)  # (batch, num_features, 64)
+        x = self.fc1(x_in)
         x1 = self.relu(torch.bmm(self.batch_adj, x))
         x1 = self.block1(x1)
         x2 = self.relu(torch.bmm(self.batch_adj, x1))
@@ -148,7 +145,6 @@ class IGNNet(nn.Module):
         x_flat = x_in.squeeze(-1)
         x_cross = self.cross_net(x_flat) 
         combined = torch.cat([x_gnn_flat, x_cross], dim=1)
-        
         if self.loss == 'BCE':
             combined = torch.cat([x_gnn_flat, x_cross], dim=1)
             out = self.final_fc(combined)
@@ -300,13 +296,10 @@ def train_model(input_dim, num_features, adj_matrix, index_to_name,
     gnn_model.load_state_dict(best_model_wts)
     logger.info(f"Best model found at epoch {best_epoch} with Mean Score = {best_score:.4f}")
     
-    model_dir = './plot/model/'
-    optm_dir = './plot/optm/'
-    if not os.path.exists(model_dir) :
-        os.makedirs(model_dir, exist_ok=True)
-        
-    if not os.path.exists(optm_dir):
-        os.makedirs(optm_dir, exist_ok=True)
+    model_dir = '/data/home/stateun/model/'
+    optm_dir = '/data/home/stateun/optm/'
+    os.makedirs(model_dir, exist_ok=True)
+    os.makedirs(optm_dir, exist_ok=True)
     
     mean_str = "{:.2f}".format(best_score)
     model_name = f'test4_{now}_{mean_str}.model'
@@ -322,56 +315,68 @@ def train_model(input_dim, num_features, adj_matrix, index_to_name,
     
     return gnn_model
 
-def save_importance_plot(model, normalized_instance, instance, num_f, save_path):
-
-    feature_dir = './plot/feature/'
-    if not os.path.exists(feature_dir):
-        os.makedirs(feature_dir)
-    save_path = os.path.join(feature_dir, save_path)
-    
-    y = model.predict(normalized_instance)
-    if model.num_classes > 2:
-        y = np.argmax(y[0].cpu().detach().numpy())
-    
-    feature_global_importance = model.get_global_importance(y)
+def save_local_importance_plot(model, normalized_instance, instance, num_f, save_filename):
+    save_path = save_filename
     local_importance = model.get_local_importance(normalized_instance).reshape(-1)
-    
-    feature_local_importance = {}
     original_values = instance.to_dict()
-    
-    for i, v in enumerate(local_importance):
+    feature_local_importance = {}
+    for i, imp in enumerate(local_importance):
         name = model.index_to_name[i]
-        combined_importance = feature_global_importance[name] * v
-        feature_local_importance[name] = combined_importance
-    
-    sorted_importances = sorted(feature_local_importance.items(), key=lambda x: abs(x[1]), reverse=True)
-    
-    top_features = sorted_importances[:num_f]
-    
-    feature_names = [f"{f_name} = {original_values[f_name]}" for f_name, val in top_features]
-    values = [val for f_name, val in top_features]
-    
-    feature_names.reverse()
-    values.reverse()
-    
-    colors = ['dodgerblue' if v < 0 else '#f5054f' for v in values]
-    
+        feature_local_importance[name] = imp
+    sorted_local = sorted(feature_local_importance.items(), key=lambda x: abs(x[1]), reverse=True)
+    top_local = sorted_local[:num_f]
+    feature_names = [f"{name} = {original_values[name]}" for name, val in top_local]
+    values = [val for name, val in top_local]
     plt.style.use('ggplot')
     plt.rcParams.update({'font.size': 12, 'font.weight': 'bold'})
     plt.figure(figsize=(8, 6))
-    
+    colors = ['dodgerblue' if v < 0 else '#f5054f' for v in values]
     plt.barh(feature_names, values, color=colors)
     plt.axvline(x=0, color='black', linewidth=1)
-    
     for i, v in enumerate(values):
         if v >= 0:
             plt.text(v + 0.01, i, f"+{v:.2f}", va='center', ha='left')
         else:
             plt.text(v - 0.01, i, f"{v:.2f}", va='center', ha='right')
-    
-    plt.xlabel("Value")
-    plt.title("Feature Importances (SHAP-like) - Top {} Features".format(num_f))
-    
+    plt.xlabel("Local Importance")
+    plt.title("Local Feature Importances")
+    plt.tight_layout()
+    plt.savefig(save_path)
+    plt.close()
+
+def save_global_importance_plot(model, normalized_instance, instance, num_f, save_filename):
+    global_dir = './global'
+    os.makedirs(global_dir, exist_ok=True)
+    save_path = os.path.join(global_dir, save_filename)
+    y = model.predict(normalized_instance)
+    if model.num_classes > 2:
+        y = np.argmax(y[0].cpu().detach().numpy())
+    global_importance = model.get_global_importance(y)
+    original_values = instance.to_dict()
+    feature_names = []
+    values = []
+    for i in range(len(global_importance)):
+        name = model.index_to_name[i]
+        feature_names.append(f"{name} = {original_values[name]}")
+        values.append(global_importance[name])
+    combined = list(zip(feature_names, values))
+    sorted_combined = sorted(combined, key=lambda x: abs(x[1]), reverse=True)
+    top_combined = sorted_combined[:num_f]
+    feature_names = [item[0] for item in top_combined]
+    values = [item[1] for item in top_combined]
+    plt.style.use('ggplot')
+    plt.rcParams.update({'font.size': 12, 'font.weight': 'bold'})
+    plt.figure(figsize=(8, 6))
+    colors = ['dodgerblue' if v < 0 else '#f5054f' for v in values]
+    plt.barh(feature_names, values, color=colors)
+    plt.axvline(x=0, color='black', linewidth=1)
+    for i, v in enumerate(values):
+        if v >= 0:
+            plt.text(v + 0.01, i, f"+{v:.2f}", va='center', ha='left')
+        else:
+            plt.text(v - 0.01, i, f"{v:.2f}", va='center', ha='right')
+    plt.xlabel("Global Importance")
+    plt.title("Global Feature Importances")
     plt.tight_layout()
     plt.savefig(save_path)
     plt.close()
